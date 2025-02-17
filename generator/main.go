@@ -12,6 +12,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/brianvoe/gofakeit/v7"
+	"github.com/google/uuid"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -33,9 +34,9 @@ func loadConfig() Config {
 	config := Config{}
 
 	flag.StringVar(&config.Table, "table", "", "Destination table (redis_engine_table or kafka_engine_table)")
-	flag.DurationVar(&config.Interval, "interval", 200*time.Millisecond, "Interval between insertions")
+	flag.DurationVar(&config.Interval, "interval", 70*time.Millisecond, "Interval between insertions")
 	flag.IntVar(&config.BatchCount, "batch-count", 1000, "Number of batches to insert")
-	flag.IntVar(&config.BatchSize, "batch-size", 10, "Number of records per batch")
+	flag.IntVar(&config.BatchSize, "batch-size", 7, "Number of records per batch")
 	flag.Parse()
 
 	if table := os.Getenv("CLICKHOUSE_TABLE"); table != "" {
@@ -155,15 +156,11 @@ func main() {
 
 func generateRecord(faker *gofakeit.Faker) Record {
 	return Record{
-		ID:      generateTimestampID(),
+		ID:      uuid.New().String(),
 		Date:    time.Now().UTC(),
 		Email:   faker.Email(),
 		Message: faker.HackerPhrase(),
 	}
-}
-
-func generateTimestampID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
 func getKeys(m map[string]bool) []string {

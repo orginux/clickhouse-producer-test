@@ -27,9 +27,11 @@ copy-generator-to-container: build-generator
 	@docker cp generator/bin/generator clickhouse-producer-test-clickhouse-1:/usr/local/bin
 
 start-generator-redis: copy-generator-to-container
+	@echo "Starting generator for redis_null table"
 	@docker exec clickhouse-producer-test-clickhouse-1 /usr/local/bin/generator -table redis_null
 
 start-generator-kafka: copy-generator-to-container
+	@echo "Starting generator for kafka_null table"
 	@docker exec clickhouse-producer-test-clickhouse-1 /usr/local/bin/generator -table kafka_null
 
 copy-query-to-container:
@@ -38,7 +40,7 @@ copy-query-to-container:
 run-query: copy-query-to-container
 	@docker exec clickhouse-producer-test-clickhouse-1 clickhouse-local --queries-file /tmp/query.sql
 
-test: clean up wait-for-clickhouse apply-schema start-generator-redis start-generator-kafka run-query down
+test: clean up wait-for-clickhouse apply-schema start-generator-kafka start-generator-redis run-query
 
 clickhouse-client:
 	@docker exec -it clickhouse-producer-test-clickhouse-1 clickhouse-client -n

@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.32.0
 	github.com/brianvoe/gofakeit/v7 v7.2.1
+	github.com/google/uuid v1.6.0
 	github.com/schollz/progressbar/v3 v3.18.0
 )
 
@@ -13,7 +14,6 @@ require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/paulmach/orb v0.11.1 // indirect
