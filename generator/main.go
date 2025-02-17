@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,14 +22,49 @@ type Record struct {
 	Message string    `json:"message"`
 }
 
-func main() {
-	table := flag.String("table", "", "Destination table (redis_engine_table or kafka_engine_table)")
-	interval := flag.Duration("interval", 100*time.Millisecond, "Interval between insertions")
-	count := flag.Int("count", 1_000, "Number of records to insert")
+type Config struct {
+	Table      string
+	Interval   time.Duration
+	BatchCount int
+	BatchSize  int
+}
+
+func loadConfig() Config {
+	config := Config{}
+
+	flag.StringVar(&config.Table, "table", "", "Destination table (redis_engine_table or kafka_engine_table)")
+	flag.DurationVar(&config.Interval, "interval", 200*time.Millisecond, "Interval between insertions")
+	flag.IntVar(&config.BatchCount, "batch-count", 1000, "Number of batches to insert")
+	flag.IntVar(&config.BatchSize, "batch-size", 10, "Number of records per batch")
 	flag.Parse()
 
-	if *table == "" {
-		log.Fatal("Please specify a destination table using -table flag")
+	if table := os.Getenv("CLICKHOUSE_TABLE"); table != "" {
+		config.Table = table
+	}
+	if interval := os.Getenv("CLICKHOUSE_INTERVAL"); interval != "" {
+		if d, err := time.ParseDuration(interval); err == nil {
+			config.Interval = d
+		}
+	}
+	if batchCount := os.Getenv("CLICKHOUSE_BATCH_COUNT"); batchCount != "" {
+		if n, err := strconv.Atoi(batchCount); err == nil {
+			config.BatchCount = n
+		}
+	}
+	if batchSize := os.Getenv("CLICKHOUSE_BATCH_SIZE"); batchSize != "" {
+		if n, err := strconv.Atoi(batchSize); err == nil {
+			config.BatchSize = n
+		}
+	}
+
+	return config
+}
+
+func main() {
+	config := loadConfig()
+
+	if config.Table == "" {
+		log.Fatal("Please specify a destination table using -table flag or CLICKHOUSE_TABLE env var")
 	}
 
 	validTables := map[string]bool{
@@ -36,9 +72,13 @@ func main() {
 		"kafka_null": true,
 	}
 
-	if !validTables[*table] {
+	if !validTables[config.Table] {
 		log.Fatalf("Invalid table name. Valid options are: %s", strings.Join(getKeys(validTables), ", "))
 	}
+
+	totalRecords := config.BatchCount * config.BatchSize
+	log.Printf("Will insert %d records in %d batches of %d records each",
+		totalRecords, config.BatchCount, config.BatchSize)
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"localhost:9000"},
@@ -58,43 +98,62 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if conn.Ping(context.Background()); err != nil {
+	ctx := context.Background()
+	if err := conn.Ping(ctx); err != nil {
 		log.Fatal(err)
 	}
 
 	faker := gofakeit.New(0)
 
-	logFileName := fmt.Sprintf("insert_%s.log", *table)
+	logFileName := fmt.Sprintf("insert_%s.log", config.Table)
 	lf, err := os.Create(logFileName)
 	if err != nil {
 		log.Fatalf("Error creating log file: %v", err)
 	}
 	defer lf.Close()
 
-	// Create a progress bar
-	bar := progressbar.Default(int64(*count))
+	bar := progressbar.Default(int64(totalRecords))
 
-	// Generate and insert data in a loop
-	for i := 0; i < *count; i++ {
-		record := generateRecord(faker)
+	for batchNum := 0; batchNum < config.BatchCount; batchNum++ {
+		start := time.Now()
 
-		// Insert into specified table
-		err = insertRecord(conn, *table, record, lf)
+		// Prepare batch
+		batch, err := conn.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", config.Table))
 		if err != nil {
-			log.Fatalf("Error inserting into %s: %v", *table, err)
+			log.Fatalf("Error preparing batch: %v", err)
 		}
 
-		// Print the generated record
-		// jsonData, _ := json.MarshalIndent(record, "", "  ")
-		// fmt.Printf("Generated record for %s:\n%s\n", *table, string(jsonData))
+		// Generate and append records
+		for i := 0; i < config.BatchSize; i++ {
+			record := generateRecord(faker)
+			err := batch.Append(
+				record.ID,
+				record.Date,
+				record.Email,
+				record.Message,
+			)
+			if err != nil {
+				log.Fatalf("Error appending to batch: %v", err)
+			}
+			bar.Add(1)
+		}
 
-		bar.Add(1)
-		time.Sleep(*interval)
+		// Send batch
+		err = batch.Send()
+		if err != nil {
+			log.Fatalf("Error sending batch: %v", err)
+		}
+
+		duration := time.Since(start)
+		fmt.Fprintf(lf, "%s,%v,%d\n", config.Table, duration.Milliseconds(), config.BatchSize)
+
+		time.Sleep(config.Interval)
 	}
-	fmt.Printf("Done, check %s for logs\n", logFileName)
-}
-func generateRecord(faker *gofakeit.Faker) Record {
 
+	fmt.Printf("\nDone, check %s for logs\n", logFileName)
+}
+
+func generateRecord(faker *gofakeit.Faker) Record {
 	return Record{
 		ID:      generateTimestampID(),
 		Date:    time.Now().UTC(),
@@ -105,29 +164,6 @@ func generateRecord(faker *gofakeit.Faker) Record {
 
 func generateTimestampID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
-
-func insertRecord(conn clickhouse.Conn, table string, record Record, lf *os.File) error {
-	start := time.Now()
-	query := fmt.Sprintf(`
-		INSERT INTO %s (
-			ID,
-			Date,
-			Email,
-			Message
-		) VALUES (?, ?, ?, ?)
-	`, table)
-
-	err := conn.Exec(context.Background(), query,
-		record.ID,
-		record.Date,
-		record.Email,
-		record.Message,
-	)
-	end := time.Now()
-	duration := end.Sub(start)
-	fmt.Fprintf(lf, "%s,%v\n", table, duration.Milliseconds())
-	return err
 }
 
 func getKeys(m map[string]bool) []string {

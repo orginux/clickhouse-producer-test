@@ -19,7 +19,7 @@ The main purpose of this project is to evaluate ClickHouse's performance as a da
 
 ## Quick Start
 
-1. Start all services and run the complete test:
+Start all services and run the complete test:
 ```bash
 make test
 ```
@@ -94,12 +94,38 @@ make run-query
 
 ## Generator Configuration
 
-The data generator supports:
+The data generator supports the following configuration options:
+
 ```bash
+# Command line flags
 -table string        # Target table (redis_null or kafka_null)
--interval duration   # Delay between insertions (default: 100ms)
--count int          # Number of records to insert (default: 1000)
+-interval duration   # Delay between batch insertions (default: 200ms)
+-batch-count int    # Number of batches to insert (default: 100)
+-batch-size int     # Number of records per batch (default: 10)
+
+# Environment variables
+CLICKHOUSE_TABLE        # Same as -table
+CLICKHOUSE_INTERVAL     # Same as -interval
+CLICKHOUSE_BATCH_COUNT  # Same as -batch-count
+CLICKHOUSE_BATCH_SIZE   # Same as -batch-size
 ```
+
+### Batch Processing
+The generator uses ClickHouse's native batch processing capabilities. The total number of records inserted will be:
+```
+total_records = batch_count × batch_size
+```
+
+For example:
+```bash
+# Insert 1000 records in 100 batches of 10 records each
+./generator -table redis_null -batch-count 100 -batch-size 10
+
+# Insert 10000 records in 100 batches of 100 records each
+./generator -table kafka_null -batch-count 100 -batch-size 100
+```
+
+Each batch insertion's performance is logged separately, allowing for detailed analysis of batch processing efficiency.
 
 ## Dependencies
 ### Go packages:
