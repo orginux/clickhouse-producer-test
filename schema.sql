@@ -19,7 +19,7 @@ CREATE TABLE kafka_null AS kafka_engine_table
 ENGINE = Null
 ;
 
-DROP VIEW kafka_mv;
+DROP VIEW IF EXISTS kafka_mv;
 CREATE MATERIALIZED VIEW kafka_mv TO kafka_engine_table
 AS SELECT * FROM kafka_null;
 
@@ -41,7 +41,7 @@ CREATE TABLE redis_null AS redis_engine_table
 ENGINE = Null
 ;
 
-DROP VIEW redis_mv;
+DROP VIEW IF EXISTS redis_mv;
 CREATE MATERIALIZED VIEW redis_mv TO redis_engine_table
 AS SELECT *
 FROM redis_null;
