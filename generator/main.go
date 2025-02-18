@@ -35,7 +35,7 @@ func loadConfig() Config {
 
 	flag.StringVar(&config.Table, "table", "", "Destination table (redis_engine_table, kafka_engine_table, postgres_engine_table)")
 	flag.DurationVar(&config.Interval, "interval", 70*time.Millisecond, "Interval between insertions")
-	flag.IntVar(&config.BatchCount, "batch-count", 10, "Number of batches to insert")
+	flag.IntVar(&config.BatchCount, "batch-count", 1000, "Number of batches to insert")
 	flag.IntVar(&config.BatchSize, "batch-size", 7, "Number of records per batch")
 	flag.Parse()
 
