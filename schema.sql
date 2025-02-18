@@ -45,3 +45,29 @@ DROP VIEW IF EXISTS redis_mv;
 CREATE MATERIALIZED VIEW redis_mv TO redis_engine_table
 AS SELECT *
 FROM redis_null;
+
+--
+DROP TABLE IF EXISTS postgres_engine_table;
+CREATE TABLE postgres_engine_table
+(
+    id String,
+    date DateTime,
+    email String,
+    message String
+)
+ENGINE = PostgreSQL(
+    'postgres:5432',
+    'testdb',
+    'messages',
+    'test',
+    'test123'
+);
+
+DROP TABLE IF EXISTS postgres_null;
+CREATE TABLE postgres_null AS postgres_engine_table
+ENGINE = Null;
+
+DROP VIEW IF EXISTS postgres_mv;
+CREATE MATERIALIZED VIEW postgres_mv TO postgres_engine_table
+AS SELECT *
+FROM postgres_null;
